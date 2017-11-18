@@ -20,11 +20,11 @@ package com.zm.rabbitmqservice;
  *
  * @author zmiller
  */
-class RPCResponse {
-    
+class RPCResponse<T> {
+
     final String jsonrpc = "2.0";
     String id;
-    Object result;
-    RPCError error;
+    T result;
+    RPCError<?> error;
     
 }
