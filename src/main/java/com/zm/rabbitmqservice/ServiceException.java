@@ -22,7 +22,7 @@ import java.util.List;
  *
  * @author zmiller
  */
-class ServiceException extends Exception {
+public class ServiceException extends Exception {
 
     public Code code;
     public Reason reason;
