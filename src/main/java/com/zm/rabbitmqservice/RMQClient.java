@@ -85,7 +85,7 @@ public class RMQClient {
                 }
             });
 
-            RPCResponse<T> r = gson.fromJson(response.take(), RPCResponse.class);
+            RPCResponse r = gson.fromJson(response.take(), RPCResponse.class);
             if(r.error != null) {
                 try {
                     Class<? extends Throwable> clazz = (Class<? extends Throwable>) Class.forName(r.error.clazz);
@@ -95,7 +95,7 @@ public class RMQClient {
                 }
             }
 
-            return r.result;
+            return r.getResult(retval);
         }
         catch(IOException | InterruptedException e){
             throw new ClientException("Failed to call service.", e);

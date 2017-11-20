@@ -16,15 +16,24 @@
  */
 package com.zm.rabbitmqservice;
 
+import com.google.gson.Gson;
+
 /**
  *
  * @author zmiller
  */
-class RPCResponse<T> {
+class RPCResponse {
 
     final String jsonrpc = "2.0";
     String id;
-    T result;
     RPCError<?> error;
-    
+    private String result;
+
+    public void setResult(Object result) {
+        this.result = new Gson().toJson(result, result.getClass());
+    }
+
+    public <T> T getResult(Class<T> type) {
+        return new Gson().fromJson(this.result, type);
+    }
 }

@@ -131,7 +131,7 @@ public class RMQApplication extends DefaultConsumer {
 
     @Override
     public void handleDelivery(String consumerTag, Envelope envelope, BasicProperties properties, byte[] body) {
-        RPCResponse<?> response = new RPCResponse();
+        RPCResponse response = new RPCResponse();
         try {
 
             String message = new String(body,"UTF-8");
@@ -199,7 +199,7 @@ public class RMQApplication extends DefaultConsumer {
             }
 
             try {
-                response.result = method.invoke(app, params);
+                response.setResult(method.invoke(app, params));
             } catch (IllegalAccessException e) {
                 response.error = new RPCError<>(new ServiceException(SERVER_ERROR, UNKNOWN_EXCEPTION));
             } catch (InvocationTargetException e) {
