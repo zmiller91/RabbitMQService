@@ -30,6 +30,8 @@ class RPCError<T extends Throwable> {
     
     RPCError(T reason) {
         this.reason = new Gson().toJson(reason);
-        this.clazz = reason.getClass().getName();
+        if(reason != null) {
+            this.clazz = reason.getClass().getName();
+        }
     }
 }

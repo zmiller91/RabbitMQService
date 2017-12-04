@@ -30,7 +30,9 @@ class RPCResponse {
     private String result;
 
     public void setResult(Object result) {
-        this.result = new Gson().toJson(result, result.getClass());
+        if(result != null) {
+            this.result = new Gson().toJson(result, result.getClass());
+        }
     }
 
     public <T> T getResult(Class<T> type) {

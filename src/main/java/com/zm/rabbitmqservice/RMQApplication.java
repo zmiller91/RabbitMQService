@@ -217,6 +217,10 @@ public class RMQApplication extends DefaultConsumer {
                     response.error = new RPCError<>(new ServiceException(SERVER_ERROR, UNKNOWN_EXCEPTION));
                 }
             }
+            catch (Exception e) {
+                e.printStackTrace();
+                response.error = new RPCError<>(new ServiceException(SERVER_ERROR, UNKNOWN_EXCEPTION));
+            }
         }
     }
 
@@ -258,6 +262,10 @@ public class RMQApplication extends DefaultConsumer {
                 success = false;
                 errors.add(INVALID_PARAM_TYPE.getValue()+ " at index " + i);
             }
+            catch(Exception e) {
+                e.printStackTrace();
+                errors.add(Reason.UNKNOWN_EXCEPTION.getValue());
+            }
         }
         
         if(!success) {
@@ -281,7 +289,7 @@ public class RMQApplication extends DefaultConsumer {
                 .build();
         
         try {
-            System.out.println(gson.toJson(response));
+//            System.out.println(gson.toJson(response));
             byte[] reply = gson.toJson(response).getBytes("UTF-8");
             channel.basicPublish("", properties.getReplyTo(), replyProps, reply);
             channel.basicAck(envelope.getDeliveryTag(), false);

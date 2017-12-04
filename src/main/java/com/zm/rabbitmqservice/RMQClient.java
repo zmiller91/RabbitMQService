@@ -34,8 +34,9 @@ public class RMQClient {
     private String requestQueueName;
     private final Gson gson;
     private final ExecutorService pool;
+    private Exception connectionException;
 
-    protected RMQClient(String host, String queue, int executorPoolSize) throws ClientException {
+    protected RMQClient(String host, String queue, int executorPoolSize) {
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(host);
         requestQueueName = queue;
@@ -43,13 +44,16 @@ public class RMQClient {
         try {
             connection = factory.newConnection(pool);
         } catch (IOException | TimeoutException e) {
-            throw new ClientException("Could not connect to RabbitMQ client.", e);
+            connectionException = e;
         }
         gson = new Gson();
     }
 
     protected <T> T call(String method, JsonArray params, Class<T> retval) throws Throwable {
-        
+        if(connectionException != null) {
+            throw new ClientException("Could not connect to RabbitMQ client.", connectionException);
+        }
+
         final String corrId = UUID.randomUUID().toString();
         final BlockingQueue<String> response = new ArrayBlockingQueue<>(100);
 
@@ -85,7 +89,8 @@ public class RMQClient {
                 }
             });
 
-            RPCResponse r = gson.fromJson(response.take(), RPCResponse.class);
+            String re = response.take();
+            RPCResponse r = gson.fromJson(re, RPCResponse.class);
             if(r.error != null) {
                 try {
                     Class<? extends Throwable> clazz = (Class<? extends Throwable>) Class.forName(r.error.clazz);
