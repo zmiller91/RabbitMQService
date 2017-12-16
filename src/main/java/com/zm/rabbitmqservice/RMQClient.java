@@ -27,32 +27,34 @@ import com.rabbitmq.client.Envelope;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.*;
+import static com.zm.rabbitmqservice.ServiceUnavailableException.Status.*;
 
 public class RMQClient {
 
-    private Connection connection;
     private String requestQueueName;
     private final Gson gson;
     private final ExecutorService pool;
-    private Exception connectionException;
+    private final ConnectionFactory connectionFactory;
+    private int timeout = 3000;
+    private Integer expiry;
 
     protected RMQClient(String host, String queue, int executorPoolSize) {
-        ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost(host);
+        connectionFactory = new ConnectionFactory();
+        connectionFactory.setHost(host);
         requestQueueName = queue;
         pool = Executors.newFixedThreadPool(executorPoolSize);
-        try {
-            connection = factory.newConnection(pool);
-        } catch (IOException | TimeoutException e) {
-            connectionException = e;
-        }
         gson = new Gson();
     }
 
-    protected <T> T call(String method, JsonArray params, Class<T> retval) throws Throwable {
-        if(connectionException != null) {
-            throw new ClientException("Could not connect to RabbitMQ client.", connectionException);
-        }
+    public void setMessageExpiry(Integer expiry) {
+        this.expiry = expiry;
+    }
+
+    public void setClientTimeout(int timeout) {
+        this.timeout = timeout;
+    }
+
+    protected <T> T call(String method, JsonArray params, Class<T> retval) throws TimeoutException, IOException, Throwable {
 
         final String corrId = UUID.randomUUID().toString();
         final BlockingQueue<String> response = new ArrayBlockingQueue<>(100);
@@ -63,12 +65,12 @@ public class RMQClient {
         request.params = params;
         String message = gson.toJson(request);
 
-        try {
-
+        try (Connection connection = connectionFactory.newConnection(pool)){
             Channel channel = connection.createChannel();
             String replyQueueName = channel.queueDeclare().getQueue();
             AMQP.BasicProperties props = new AMQP.BasicProperties
                     .Builder()
+                    .expiration(expiry == null ? null : expiry.toString())
                     .correlationId(corrId)
                     .replyTo(replyQueueName)
                     .build();
@@ -83,13 +85,17 @@ public class RMQClient {
                         try {
                             this.getChannel().close();
                         } catch (TimeoutException e) {
-                            //TODO do something here
+                            //TODO: figure out what to do here
                         }
                     }
                 }
             });
 
-            String re = response.take();
+            String re = response.poll(timeout, TimeUnit.MILLISECONDS);
+            if(re == null) {
+                throw new ServiceUnavailableException(expiry == null ? IN_QUEUE : EXPIRED);
+            }
+
             RPCResponse r = gson.fromJson(re, RPCResponse.class);
             if(r.error != null) {
                 try {
@@ -102,13 +108,14 @@ public class RMQClient {
 
             return r.getResult(retval);
         }
-        catch(IOException | InterruptedException e){
+        catch(InterruptedException e){
             throw new ClientException("Failed to call service.", e);
         }
     }
 
     public void close() throws IOException {
-        pool.shutdown();
-        connection.close();
+        if(pool != null) {
+            pool.shutdown();
+        }
     }
 }
