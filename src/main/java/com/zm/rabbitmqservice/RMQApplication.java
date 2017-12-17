@@ -33,23 +33,27 @@ public class RMQApplication<U> extends TimerTask {
     private String queue;
     private ExecutorService pool;
     private U app;
+    private AppConsumer<U> appConsumer;
 
-    private RMQApplication(U app, String queue, String host) {
+    private RMQApplication(U app, String queue, String host, int poolSize) {
         this.factory = new ConnectionFactory();
         factory.setHost(host);
         this.queue = queue;
-        this.pool = Executors.newFixedThreadPool(25);
+        this.pool = Executors.newFixedThreadPool(poolSize);
         this.app = app;
     }
 
     @Override
     public void run() {
         try {
-            connection = connection == null || !connection.isOpen() ? factory.newConnection(pool) : connection;
-            Channel channel = connection.createChannel();
-            channel.queueDeclare(queue, false, false, false, null);
-            channel.basicQos(1);
-            channel.basicConsume(queue, false, new AppConsumer<>(channel, app));
+            if(appConsumer == null || !appConsumer.isOpen()) {
+                connection = connection == null || !connection.isOpen() ? factory.newConnection(pool) : connection;
+                Channel channel = connection.createChannel();
+                channel.queueDeclare(queue, false, false, false, null);
+                channel.basicQos(1);
+                appConsumer = new AppConsumer<>(channel, app);
+                channel.basicConsume(queue, false, appConsumer);
+            }
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
@@ -77,7 +81,7 @@ public class RMQApplication<U> extends TimerTask {
         }
         
         // Start consuming the queue
-        RMQApplication<U> tr = new RMQApplication<>(app, queueName, host);
+        RMQApplication<U> tr = new RMQApplication<>(app, queueName, host, executorPoolSize);
         new Timer().schedule(tr, 0, 100);
     }
 }

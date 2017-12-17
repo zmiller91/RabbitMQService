@@ -3,12 +3,13 @@ package com.zm.rabbitmqservice;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonSyntaxException;
+import com.google.gson.stream.JsonWriter;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
 
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -24,29 +25,32 @@ import static com.zm.rabbitmqservice.ServiceException.Reason.COULD_NOT_PARSE_PAR
 
 class AppConsumer<U> extends DefaultConsumer {
 
-    private final Gson gson;
+    private static final Gson gson = new Gson();
     private Channel channel;
-    private final Map<String, Class<?>[]> methods;
     private U app;
+    private Map<String, Class<?>[]> methods;
 
     <T extends U> AppConsumer(Channel channel, T app) {
         super(channel);
-
-        this.channel = channel;
-        gson = new Gson();
         this.app = app;
-        methods = new HashMap<>();
+        this.channel = channel;
+        this.methods = new HashMap<>();
         for(Method m : app.getClass().getMethods()) {
             methods.put(m.getName(), m.getParameterTypes());
         }
+        System.out.println("Creating AppConsumer");
     }
+
+    boolean isOpen() {
+        return channel.isOpen();
+    }
+
     @Override
     public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) {
         RPCResponse response = new RPCResponse();
         try {
 
-            String message = new String(body,"UTF-8");
-            RPCRequest request = parseRequest(message, response);
+            RPCRequest request = parseRequest(body, response);
             boolean success = request != null;
 
             // Must be jsonrpc 2.0 by spec
@@ -66,7 +70,7 @@ class AppConsumer<U> extends DefaultConsumer {
                 invoke(request, response);
             }
 
-        } catch (UnsupportedEncodingException | JsonSyntaxException e) {
+        } catch ( JsonSyntaxException | IOException e) {
             setError(response, COULD_NOT_PARSE_REQUEST, BAD_REQUEST);
         }
 
@@ -81,14 +85,15 @@ class AppConsumer<U> extends DefaultConsumer {
      * @param properties
      */
     private void acknowledge(RPCResponse response, Envelope envelope, AMQP.BasicProperties properties) {
-        AMQP.BasicProperties replyProps = new AMQP.BasicProperties.Builder()
-                .correlationId(properties.getCorrelationId())
-                .build();
+//        AMQP.BasicProperties replyProps = new AMQP.BasicProperties.Builder()
+//                .correlationId(properties.getCorrelationId())
+//                .build();
 
-        try {
-//            System.out.println(gson.toJson(response));
-            byte[] reply = gson.toJson(response).getBytes("UTF-8");
-            channel.basicPublish("", properties.getReplyTo(), replyProps, reply);
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream();
+             JsonWriter writer = new JsonWriter(new OutputStreamWriter (os)))
+        {
+            gson.toJson(response, RPCResponse.class, writer);
+            channel.basicPublish("", properties.getReplyTo(), properties, os.toByteArray());
             channel.basicAck(envelope.getDeliveryTag(), false);
         }
 
@@ -104,10 +109,14 @@ class AppConsumer<U> extends DefaultConsumer {
      * @param response - response object
      * @return deserialized request object or null on failure
      */
-    private RPCRequest parseRequest(String rawRequest, RPCResponse response) throws JsonSyntaxException {
-        RPCRequest request = gson.fromJson(rawRequest, RPCRequest.class);
-        response.id = request.id;
-        return request;
+    private RPCRequest parseRequest(byte[] rawRequest, RPCResponse response) throws JsonSyntaxException, IOException {
+        try (InputStream is = new ByteArrayInputStream(rawRequest);
+             Reader reader = new InputStreamReader(is))
+        {
+            RPCRequest request = gson.fromJson(reader, RPCRequest.class);
+            response.id = request.id;
+            return request;
+        }
     }
 
     /**
@@ -188,7 +197,7 @@ class AppConsumer<U> extends DefaultConsumer {
         // Decode each parameter to it's java type
         for(int i = 0; i < params.length; i++) {
             try {
-                params[i] = gson.fromJson(request.params.get(i).toString(), types[i]);
+                params[i] = gson.fromJson(request.params.get(i), types[i]);
             }
 
             // Fail if there is a syntax exception, don't terminate in case there
