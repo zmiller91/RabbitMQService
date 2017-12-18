@@ -17,10 +17,12 @@
 package com.zm.rabbitmqservice;
 
 import com.rabbitmq.client.*;
+
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -28,32 +30,62 @@ import java.util.concurrent.Executors;
  */
 public class RMQApplication<U> extends TimerTask {
 
-    private  final ConnectionFactory factory;
-    private Connection connection;
-    private String queue;
-    private ExecutorService pool;
+
+    private final ExecutorService pool;
+    private final ConnectionFactory connectionFactory;
     private U app;
-    private AppConsumer<U> appConsumer;
+    private String queue;
+    private Connection connection;
+    private Channel channel;
 
     private RMQApplication(U app, String queue, String host, int poolSize) {
-        this.factory = new ConnectionFactory();
-        factory.setHost(host);
         this.queue = queue;
-        this.pool = Executors.newFixedThreadPool(poolSize);
+        connectionFactory = new ConnectionFactory();
+        connectionFactory.setHost(host);
+        ThreadFactory factory = new ThreadFactory() {
+
+            private final AtomicInteger counter = new AtomicInteger();
+
+            @Override
+            public Thread newThread(Runnable r) {
+                final String threadName = String.format("%s-%d", "app", counter.incrementAndGet());
+                return new Thread(r, threadName);
+            }
+        };
+        pool = new ThreadPoolExecutor(1, poolSize, 500, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), factory);
         this.app = app;
+    }
+
+
+
+    private synchronized void connectToRMQ() throws IOException, TimeoutException {
+
+        if(connection == null) {
+            connection = connectionFactory.newConnection(pool);
+        }
+
+        if(!connection.isOpen()) {
+            connection.abort();
+            connection = connectionFactory.newConnection(pool);
+        }
+
+        if(connection.isOpen() && (channel == null || !channel.isOpen())) {
+            if(channel != null) {
+                channel.abort();
+            }
+
+            channel = connection.createChannel();
+            channel.queueDeclare(queue, false, false, false, null);
+            channel.basicQos(1);
+            AppConsumer<U> appConsumer = new AppConsumer<>(channel, app);
+            channel.basicConsume(queue, false, appConsumer);
+        }
     }
 
     @Override
     public void run() {
         try {
-            if(appConsumer == null || !appConsumer.isOpen()) {
-                connection = connection == null || !connection.isOpen() ? factory.newConnection(pool) : connection;
-                Channel channel = connection.createChannel();
-                channel.queueDeclare(queue, false, false, false, null);
-                channel.basicQos(1);
-                appConsumer = new AppConsumer<>(channel, app);
-                channel.basicConsume(queue, false, appConsumer);
-            }
+            connectToRMQ();
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }

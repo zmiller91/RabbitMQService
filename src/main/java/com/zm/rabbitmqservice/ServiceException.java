@@ -76,4 +76,9 @@ public class ServiceException extends Exception {
         this.reason = reason;
         this.messages = messages;
     }
+
+    @Override
+    public String getMessage() {
+        return this.reason.getValue();
+    }
 }

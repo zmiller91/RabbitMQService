@@ -8,4 +8,13 @@ public class ClientException extends Exception {
         this.cause = cause;
     }
 
+    @Override
+    public String getMessage() {
+        return message;
+    }
+
+    @Override
+    public Throwable getCause() {
+        return cause;
+    }
 }

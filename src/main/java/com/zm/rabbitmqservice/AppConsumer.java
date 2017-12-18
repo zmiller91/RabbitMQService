@@ -3,7 +3,6 @@ package com.zm.rabbitmqservice;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonSyntaxException;
-import com.google.gson.stream.JsonWriter;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.DefaultConsumer;
@@ -26,23 +25,17 @@ import static com.zm.rabbitmqservice.ServiceException.Reason.COULD_NOT_PARSE_PAR
 class AppConsumer<U> extends DefaultConsumer {
 
     private static final Gson gson = new Gson();
-    private Channel channel;
     private U app;
     private Map<String, Class<?>[]> methods;
 
     <T extends U> AppConsumer(Channel channel, T app) {
         super(channel);
         this.app = app;
-        this.channel = channel;
         this.methods = new HashMap<>();
         for(Method m : app.getClass().getMethods()) {
             methods.put(m.getName(), m.getParameterTypes());
         }
         System.out.println("Creating AppConsumer");
-    }
-
-    boolean isOpen() {
-        return channel.isOpen();
     }
 
     @Override
@@ -85,18 +78,10 @@ class AppConsumer<U> extends DefaultConsumer {
      * @param properties
      */
     private void acknowledge(RPCResponse response, Envelope envelope, AMQP.BasicProperties properties) {
-//        AMQP.BasicProperties replyProps = new AMQP.BasicProperties.Builder()
-//                .correlationId(properties.getCorrelationId())
-//                .build();
-
-        try (ByteArrayOutputStream os = new ByteArrayOutputStream();
-             JsonWriter writer = new JsonWriter(new OutputStreamWriter (os)))
-        {
-            gson.toJson(response, RPCResponse.class, writer);
-            channel.basicPublish("", properties.getReplyTo(), properties, os.toByteArray());
-            channel.basicAck(envelope.getDeliveryTag(), false);
+        try {
+            this.getChannel().basicPublish("", properties.getReplyTo(), properties, gson.toJson(response).getBytes());
+            this.getChannel().basicAck(envelope.getDeliveryTag(), false);
         }
-
         catch (Exception e) {
             System.out.println(e.getMessage());
         }
@@ -144,9 +129,8 @@ class AppConsumer<U> extends DefaultConsumer {
 
             try {
                 response.setResult(method.invoke(app, params));
-            } catch (IllegalAccessException e) {
-                response.error = new RPCError<>(new ServiceException(SERVER_ERROR, UNKNOWN_EXCEPTION));
-            } catch (InvocationTargetException e) {
+            }
+            catch (InvocationTargetException e) {
 
                 // Attach the error to the response object if the error has been explicitly thrown
                 for(Class<?> clazz : method.getExceptionTypes()) {

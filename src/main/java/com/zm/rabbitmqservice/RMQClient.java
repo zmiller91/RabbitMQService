@@ -25,8 +25,11 @@ import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
 import java.io.IOException;
+import java.io.InvalidObjectException;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static com.zm.rabbitmqservice.ServiceUnavailableException.Status.*;
 
 public class RMQClient {
@@ -37,12 +40,24 @@ public class RMQClient {
     private final ConnectionFactory connectionFactory;
     private int timeout = 3000;
     private Integer expiry;
+    private Connection connection;
+    private Channel channel;
 
     protected RMQClient(String host, String queue, int executorPoolSize) {
         connectionFactory = new ConnectionFactory();
         connectionFactory.setHost(host);
         requestQueueName = queue;
-        pool = Executors.newFixedThreadPool(executorPoolSize);
+        ThreadFactory factory = new ThreadFactory() {
+
+            private final AtomicInteger counter = new AtomicInteger();
+
+            @Override
+            public Thread newThread(Runnable r) {
+                final String threadName = String.format("%s-%d", "rmq-client", counter.incrementAndGet());
+                return new Thread(r, threadName);
+            }
+        };
+        pool = new ThreadPoolExecutor(1, executorPoolSize, 500, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), factory);
         gson = new Gson();
     }
 
@@ -54,10 +69,32 @@ public class RMQClient {
         this.timeout = timeout;
     }
 
+    private synchronized void connectToRMQ() throws IOException, TimeoutException {
+
+        if(connection == null) {
+            connection = connectionFactory.newConnection(pool);
+        }
+
+        if(!connection.isOpen()) {
+            connection.abort();
+            connection = connectionFactory.newConnection(pool);
+        }
+
+        if(connection.isOpen() && (channel == null || !channel.isOpen())) {
+            if(channel != null) {
+                channel.abort();
+            }
+
+            channel = connection.createChannel();
+        }
+    }
+
     protected <T> T call(String method, JsonArray params, Class<T> retval) throws TimeoutException, IOException, Throwable {
 
+        connectToRMQ();
+
         final String corrId = UUID.randomUUID().toString();
-        final BlockingQueue<String> response = new ArrayBlockingQueue<>(100);
+        final BlockingQueue<String> response = new ArrayBlockingQueue<>(1);
 
         RPCRequest request = new RPCRequest();
         request.id = corrId;
@@ -65,8 +102,7 @@ public class RMQClient {
         request.params = params;
         String message = gson.toJson(request);
 
-        try (Connection connection = connectionFactory.newConnection(pool)){
-            Channel channel = connection.createChannel();
+        try {
             String replyQueueName = channel.queueDeclare().getQueue();
             AMQP.BasicProperties props = new AMQP.BasicProperties
                     .Builder()
@@ -82,11 +118,6 @@ public class RMQClient {
                     if (properties.getCorrelationId().equals(corrId)) {
                         String r = new String(body, "UTF-8");
                         response.offer(r);
-                        try {
-                            this.getChannel().close();
-                        } catch (TimeoutException e) {
-                            //TODO: figure out what to do here
-                        }
                     }
                 }
             });
@@ -97,6 +128,10 @@ public class RMQClient {
             }
 
             RPCResponse r = gson.fromJson(re, RPCResponse.class);
+            if (r == null) {
+                throw new ClientException("Invalid RPC Response: \"" + re + "\"", null);
+            }
+
             if(r.error != null) {
                 try {
                     Class<? extends Throwable> clazz = (Class<? extends Throwable>) Class.forName(r.error.clazz);
@@ -116,6 +151,10 @@ public class RMQClient {
     public void close() throws IOException {
         if(pool != null) {
             pool.shutdown();
+        }
+
+        if(connection != null && connection.isOpen()) {
+            connection.close();
         }
     }
 }
