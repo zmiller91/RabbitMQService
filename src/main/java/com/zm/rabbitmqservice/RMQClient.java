@@ -47,17 +47,7 @@ public class RMQClient {
         connectionFactory = new ConnectionFactory();
         connectionFactory.setHost(host);
         requestQueueName = queue;
-        ThreadFactory factory = new ThreadFactory() {
-
-            private final AtomicInteger counter = new AtomicInteger();
-
-            @Override
-            public Thread newThread(Runnable r) {
-                final String threadName = String.format("%s-%d", "rmq-client", counter.incrementAndGet());
-                return new Thread(r, threadName);
-            }
-        };
-        pool = new ThreadPoolExecutor(1, executorPoolSize, 500, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), factory);
+        pool = ExecutorServiceFactory.create(queue + "-client", executorPoolSize);
         gson = new Gson();
     }
 

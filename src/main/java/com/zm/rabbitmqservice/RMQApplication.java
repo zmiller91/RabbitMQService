@@ -39,20 +39,10 @@ public class RMQApplication<U> extends TimerTask {
     private Channel channel;
 
     private RMQApplication(U app, String queue, String host, int poolSize) {
+        this.connectionFactory = new ConnectionFactory();
+        this.connectionFactory.setHost(host);
         this.queue = queue;
-        connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost(host);
-        ThreadFactory factory = new ThreadFactory() {
-
-            private final AtomicInteger counter = new AtomicInteger();
-
-            @Override
-            public Thread newThread(Runnable r) {
-                final String threadName = String.format("%s-%d", "app", counter.incrementAndGet());
-                return new Thread(r, threadName);
-            }
-        };
-        pool = new ThreadPoolExecutor(1, poolSize, 500, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), factory);
+        this.pool = ExecutorServiceFactory.create(queue + "-app", poolSize);
         this.app = app;
     }
 
