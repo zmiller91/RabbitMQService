@@ -20,35 +20,30 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
 import java.io.IOException;
-import java.io.InvalidObjectException;
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.zm.rabbitmqservice.ServiceUnavailableException.Status.*;
 
 public class RMQClient {
 
-    private String requestQueueName;
+    private final String host;
+    private final String requestQueueName;
     private final Gson gson;
     private final ExecutorService pool;
-    private final ConnectionFactory connectionFactory;
+
     private int timeout = 3000;
     private Integer expiry;
-    private Connection connection;
-    private Channel channel;
 
     protected RMQClient(String host, String queue, int executorPoolSize) {
-        connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost(host);
+        System.out.println("Creating new RMQClient");
+        this.host = host;
         requestQueueName = queue;
-        pool = ExecutorServiceFactory.create(queue + "-client", executorPoolSize);
-        gson = new Gson();
+        this.pool = ExecutorServiceFactory.create(queue + "-client", executorPoolSize);
+        this.gson = new Gson();
     }
 
     public void setMessageExpiry(Integer expiry) {
@@ -59,33 +54,17 @@ public class RMQClient {
         this.timeout = timeout;
     }
 
-    private synchronized void connectToRMQ() throws IOException, TimeoutException {
-
-        if(connection == null) {
-            connection = connectionFactory.newConnection(pool);
-        }
-
-        if(!connection.isOpen()) {
-            connection.abort();
-            connection = connectionFactory.newConnection(pool);
-        }
-
-        if(connection.isOpen() && (channel == null || !channel.isOpen())) {
-            if(channel != null) {
-                channel.abort();
-            }
-
-            channel = connection.createChannel();
-        }
-    }
-
     protected <T> T call(String method, JsonArray params, Class<T> retval) throws TimeoutException, IOException, Throwable {
 
-        connectToRMQ();
+        Channel channel = RMQConnectionFactory.create(host, requestQueueName, pool);
+        if(channel == null) {
+            throw new ClientException("Failed to create client", null);
+        }
 
         final String corrId = UUID.randomUUID().toString();
         final BlockingQueue<String> response = new ArrayBlockingQueue<>(1);
 
+        String consumerTag = null;
         RPCRequest request = new RPCRequest();
         request.id = corrId;
         request.method = method;
@@ -102,7 +81,7 @@ public class RMQClient {
                     .build();
 
             channel.basicPublish("", requestQueueName, props, message.getBytes("UTF-8"));
-            channel.basicConsume(replyQueueName, true, new DefaultConsumer(channel) {
+            consumerTag = channel.basicConsume(replyQueueName, true, new DefaultConsumer(channel) {
                 @Override
                 public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
                     if (properties.getCorrelationId().equals(corrId)) {
@@ -133,18 +112,14 @@ public class RMQClient {
 
             return r.getResult(retval);
         }
-        catch(InterruptedException e){
-            throw new ClientException("Failed to call service.", e);
+        finally {
+            if(consumerTag != null) {
+                channel.basicCancel(consumerTag);
+            }
         }
     }
 
     public void close() throws IOException {
-        if(pool != null) {
-            pool.shutdown();
-        }
-
-        if(connection != null && connection.isOpen()) {
-            connection.close();
-        }
+        RMQConnectionFactory.close(host, requestQueueName);
     }
 }

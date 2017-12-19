@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -32,50 +31,33 @@ public class RMQApplication<U> extends TimerTask {
 
 
     private final ExecutorService pool;
-    private final ConnectionFactory connectionFactory;
     private U app;
     private String queue;
-    private Connection connection;
+    private String host;
     private Channel channel;
 
     private RMQApplication(U app, String queue, String host, int poolSize) {
-        this.connectionFactory = new ConnectionFactory();
-        this.connectionFactory.setHost(host);
         this.queue = queue;
         this.pool = ExecutorServiceFactory.create(queue + "-app", poolSize);
+        this.host = host;
         this.app = app;
     }
 
-
-
     private synchronized void connectToRMQ() throws IOException, TimeoutException {
-
-        if(connection == null) {
-            connection = connectionFactory.newConnection(pool);
-        }
-
-        if(!connection.isOpen()) {
-            connection.abort();
-            connection = connectionFactory.newConnection(pool);
-        }
-
-        if(connection.isOpen() && (channel == null || !channel.isOpen())) {
-            if(channel != null) {
-                channel.abort();
-            }
-
-            channel = connection.createChannel();
-            channel.queueDeclare(queue, false, false, false, null);
-            channel.basicQos(1);
-            AppConsumer<U> appConsumer = new AppConsumer<>(channel, app);
-            channel.basicConsume(queue, false, appConsumer);
-        }
     }
 
     @Override
     public void run() {
         try {
-            connectToRMQ();
+            if(channel == null || !channel.isOpen()) {
+                channel = RMQConnectionFactory.create(host, queue, pool);
+                if(channel != null) {
+                    channel.queueDeclare(queue, false, false, false, null);
+                    channel.basicQos(1);
+                    AppConsumer<U> appConsumer = new AppConsumer<>(channel, app);
+                    channel.basicConsume(queue, false, appConsumer);
+                }
+            }
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
