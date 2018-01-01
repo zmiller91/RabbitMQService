@@ -23,12 +23,12 @@ import com.google.gson.Gson;
  *
  * @author zmiller
  */
-class RPCError<T extends Throwable> {
+public class RPCError<T extends Throwable> {
 
     public String reason;
     public String clazz;
     
-    RPCError(T reason) {
+    public RPCError(T reason) {
         this.reason = new Gson().toJson(reason);
         if(reason != null) {
             this.clazz = reason.getClass().getName();

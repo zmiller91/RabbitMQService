@@ -1,4 +1,4 @@
-package com.zm.rabbitmqservice;
+package com.zm.rabbitmqservice.service;
 
 public class ServiceUnavailableException extends Exception {
 

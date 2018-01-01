@@ -22,9 +22,9 @@ import com.google.gson.JsonArray;
  *
  * @author zmiller
  */
-class RPCRequest {
-    String jsonrpc = "2.0";
-    String method;
-    JsonArray  params;
-    String id;
+public class RPCRequest {
+    public String jsonrpc = "2.0";
+    public String method;
+    public JsonArray  params;
+    public String id;
 }

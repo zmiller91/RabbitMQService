@@ -22,11 +22,11 @@ import com.google.gson.Gson;
  *
  * @author zmiller
  */
-class RPCResponse {
+public class RPCResponse {
 
-    final String jsonrpc = "2.0";
-    String id;
-    RPCError<?> error;
+    public final String jsonrpc = "2.0";
+    public String id;
+    public RPCError<?> error;
     private String result;
 
     public void setResult(Object result) {

@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.zm.rabbitmqservice;
+package com.zm.rabbitmqservice.client;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -22,11 +22,16 @@ import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
+import com.zm.rabbitmqservice.RMQConnectionFactory;
+import com.zm.rabbitmqservice.RPCRequest;
+import com.zm.rabbitmqservice.RPCResponse;
+import com.zm.rabbitmqservice.service.ServiceUnavailableException;
+
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.*;
 
-import static com.zm.rabbitmqservice.ServiceUnavailableException.Status.*;
+import static com.zm.rabbitmqservice.service.ServiceUnavailableException.Status.*;
 
 public class RMQClient {
 

@@ -1,4 +1,4 @@
-package com.zm.rabbitmqservice;
+package com.zm.rabbitmqservice.client;
 
 public class ClientException extends Exception {
     public final String message;

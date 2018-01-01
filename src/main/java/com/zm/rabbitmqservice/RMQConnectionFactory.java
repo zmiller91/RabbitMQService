@@ -10,11 +10,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 
-class RMQConnectionFactory {
+public class RMQConnectionFactory {
 
     private static final ConcurrentHashMap<Pair<String, String>, ConnectionBag> connections = new ConcurrentHashMap<>();
 
-    static synchronized Channel create(String host, String queue) throws IOException, TimeoutException {
+    public static synchronized Channel create(String host, String queue) throws IOException, TimeoutException {
         Pair<String, String> id = new Pair<>(host, queue);
         if(!connections.containsKey(id)) {
             connections.putIfAbsent(id, new ConnectionBag(host));
@@ -23,7 +23,7 @@ class RMQConnectionFactory {
         return connections.get(id).getChannel();
     }
 
-    static synchronized void close(String host, String queue) {
+    public static synchronized void close(String host, String queue) {
         Pair<String, String> id = new Pair<>(host, queue);
         if(connections.containsKey(id)) {
             connections.computeIfPresent(id, (stringStringPair, connectionBag) -> {

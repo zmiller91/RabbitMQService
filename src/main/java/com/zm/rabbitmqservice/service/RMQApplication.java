@@ -14,9 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.zm.rabbitmqservice;
+package com.zm.rabbitmqservice.service;
 
 import com.rabbitmq.client.*;
+import com.zm.rabbitmqservice.RMQConnectionFactory;
 
 import java.lang.reflect.Method;
 import java.util.*;

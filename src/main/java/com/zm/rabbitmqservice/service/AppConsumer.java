@@ -1,4 +1,4 @@
-package com.zm.rabbitmqservice;
+package com.zm.rabbitmqservice.service;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -7,6 +7,9 @@ import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
+import com.zm.rabbitmqservice.RPCError;
+import com.zm.rabbitmqservice.RPCRequest;
+import com.zm.rabbitmqservice.RPCResponse;
 
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
@@ -16,11 +19,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.zm.rabbitmqservice.ServiceException.Code.BAD_REQUEST;
-import static com.zm.rabbitmqservice.ServiceException.Code.NOT_FOUND;
-import static com.zm.rabbitmqservice.ServiceException.Code.SERVER_ERROR;
-import static com.zm.rabbitmqservice.ServiceException.Reason.*;
-import static com.zm.rabbitmqservice.ServiceException.Reason.COULD_NOT_PARSE_PARAMS;
+import static com.zm.rabbitmqservice.service.ServiceException.Code.BAD_REQUEST;
+import static com.zm.rabbitmqservice.service.ServiceException.Code.NOT_FOUND;
+import static com.zm.rabbitmqservice.service.ServiceException.Code.SERVER_ERROR;
+import static com.zm.rabbitmqservice.service.ServiceException.Reason.*;
+import static com.zm.rabbitmqservice.service.ServiceException.Reason.COULD_NOT_PARSE_PARAMS;
 
 class AppConsumer<U> extends DefaultConsumer {
 

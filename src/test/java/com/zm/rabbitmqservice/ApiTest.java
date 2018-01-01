@@ -17,8 +17,8 @@
 //package com.zm.rabbitmqservice;
 //
 //import com.google.gson.JsonArray;
-//import static com.zm.rabbitmqservice.ServiceException.Code.NOT_FOUND;
-//import static com.zm.rabbitmqservice.ServiceException.Reason.NO_SUCH_METHOD;
+//import static com.zm.rabbitmqservice.service.ServiceException.Code.NOT_FOUND;
+//import static com.zm.rabbitmqservice.service.ServiceException.Reason.NO_SUCH_METHOD;
 //import com.zm.rabbitmqservice.stubs.CustomReturnObject;
 //import com.zm.rabbitmqservice.stubs.DuplicateApi;
 //import com.zm.rabbitmqservice.stubs.DuplicateApiApp;
