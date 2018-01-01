@@ -1,4 +1,4 @@
-#RabbitMQService
+# RabbitMQService
 
 RabbitMQService is a Java framework that facilitates the communication between client and server via a RabbitMQ connection.  This framework abstracts the implementation of client to server communication, allowing developers to spend more time writing the interesting pieces of their application and less time managing service connections. 
 
