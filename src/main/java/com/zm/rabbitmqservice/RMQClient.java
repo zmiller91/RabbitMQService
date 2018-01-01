@@ -33,20 +33,14 @@ public class RMQClient {
     private final String host;
     private final String requestQueueName;
     private final Gson gson;
-    private final ExecutorService pool;
 
     private int timeout = 3000;
     private Integer expiry;
 
-    protected RMQClient(String host, String queue, int executorPoolSize) {
-        this(host, queue, ExecutorServiceFactory.createDefault(queue + "-client", executorPoolSize));
-    }
-
-    protected RMQClient(String host, String queue, ExecutorService executor) {
+    protected RMQClient(String host, String queue) {
         System.out.println("Creating new RMQClient");
         this.host = host;
         requestQueueName = queue;
-        this.pool = executor;
         this.gson = new Gson();
     }
 
@@ -62,7 +56,7 @@ public class RMQClient {
 
     protected <T> T call(String method, JsonArray params, Class<T> retval) throws TimeoutException, IOException, Throwable {
 
-        Channel channel = RMQConnectionFactory.create(host, requestQueueName, pool);
+        Channel channel = RMQConnectionFactory.create(host, requestQueueName);
         if(channel == null) {
             throw new ClientException("Failed to create client", null);
         }

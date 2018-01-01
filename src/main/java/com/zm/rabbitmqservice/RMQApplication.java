@@ -18,10 +18,8 @@ package com.zm.rabbitmqservice;
 
 import com.rabbitmq.client.*;
 
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.concurrent.*;
 
 /**
  *
@@ -30,27 +28,22 @@ import java.util.concurrent.*;
 public class RMQApplication<U> extends TimerTask {
 
 
-    private final ExecutorService pool;
     private U app;
     private String queue;
     private String host;
     private Channel channel;
 
-    private RMQApplication(U app, String queue, String host, int poolSize) {
+    private RMQApplication(U app, String queue, String host) {
         this.queue = queue;
-        this.pool = ExecutorServiceFactory.createDefault(queue + "-app", poolSize);
         this.host = host;
         this.app = app;
-    }
-
-    private synchronized void connectToRMQ() throws IOException, TimeoutException {
     }
 
     @Override
     public void run() {
         try {
             if(channel == null || !channel.isOpen()) {
-                channel = RMQConnectionFactory.create(host, queue, pool);
+                channel = RMQConnectionFactory.create(host, queue);
                 if(channel != null) {
                     channel.queueDeclare(queue, false, false, false, null);
                     channel.basicQos(1);
@@ -70,9 +63,8 @@ public class RMQApplication<U> extends TimerTask {
      * @param queueName - RabbitMQ channel
      * @param app - Class that implements an API which will be called when messages are retrieved
      * @param api - API that defines the valid application operations
-     * @param executorPoolSize - size of the RabbitMQ thread pool
      */
-    public static <T extends U, U> void start(String host, String queueName, T app, Class<U> api, int executorPoolSize) {
+    public static <T extends U, U> void start(String host, String queueName, T app, Class<U> api) {
         
         // No duplicate method names allowed
         Set<String> names = new HashSet<>();
@@ -85,7 +77,7 @@ public class RMQApplication<U> extends TimerTask {
         }
         
         // Start consuming the queue
-        RMQApplication<U> tr = new RMQApplication<>(app, queueName, host, executorPoolSize);
+        RMQApplication<U> tr = new RMQApplication<>(app, queueName, host);
         new Timer().schedule(tr, 0, 100);
     }
 }

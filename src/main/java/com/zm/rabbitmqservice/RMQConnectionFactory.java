@@ -14,10 +14,10 @@ class RMQConnectionFactory {
 
     private static final ConcurrentHashMap<Pair<String, String>, ConnectionBag> connections = new ConcurrentHashMap<>();
 
-    static synchronized Channel create(String host, String queue, ExecutorService pool) throws IOException, TimeoutException {
+    static synchronized Channel create(String host, String queue) throws IOException, TimeoutException {
         Pair<String, String> id = new Pair<>(host, queue);
         if(!connections.containsKey(id)) {
-            connections.putIfAbsent(id, new ConnectionBag(host, pool));
+            connections.putIfAbsent(id, new ConnectionBag(host));
         }
 
         return connections.get(id).getChannel();
@@ -34,13 +34,11 @@ class RMQConnectionFactory {
     }
 
     private static class ConnectionBag {
-        private final ExecutorService pool;
         private final ConnectionFactory factory;
         private Connection connection;
         private Channel channel;
 
-        private ConnectionBag(String host, ExecutorService pool) {
-            this.pool = pool;
+        private ConnectionBag(String host) {
             this.factory = new ConnectionFactory();
             this.factory.setHost(host);
         }
@@ -48,12 +46,12 @@ class RMQConnectionFactory {
         private Connection getConnection() throws IOException, TimeoutException {
 
             if(connection == null) {
-                this.connection = factory.newConnection(pool);
+                this.connection = factory.newConnection();
             }
 
             if(!connection.isOpen()) {
                 connection.abort();
-                this.connection = factory.newConnection(pool);
+                this.connection = factory.newConnection();
             }
 
             return connection;
@@ -79,10 +77,6 @@ class RMQConnectionFactory {
         private void close() {
             if(this.connection != null) {
                 this.connection.abort();
-            }
-
-            if(this.pool != null) {
-                this.pool.shutdown();
             }
         }
     }
