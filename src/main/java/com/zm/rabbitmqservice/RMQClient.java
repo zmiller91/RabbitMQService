@@ -39,10 +39,14 @@ public class RMQClient {
     private Integer expiry;
 
     protected RMQClient(String host, String queue, int executorPoolSize) {
+        this(host, queue, ExecutorServiceFactory.createDefault(queue + "-client", executorPoolSize));
+    }
+
+    protected RMQClient(String host, String queue, ExecutorService executor) {
         System.out.println("Creating new RMQClient");
         this.host = host;
         requestQueueName = queue;
-        this.pool = ExecutorServiceFactory.create(queue + "-client", executorPoolSize);
+        this.pool = executor;
         this.gson = new Gson();
     }
 
@@ -53,6 +57,8 @@ public class RMQClient {
     public void setClientTimeout(int timeout) {
         this.timeout = timeout;
     }
+
+    //TODO: Provide a similar method that returns a future
 
     protected <T> T call(String method, JsonArray params, Class<T> retval) throws TimeoutException, IOException, Throwable {
 
@@ -72,6 +78,10 @@ public class RMQClient {
         String message = gson.toJson(request);
 
         try {
+
+            //TODO: Not everything requires a response from the server. Allow messages to be added to the queue without
+            //TODO: waiting for a response
+
             String replyQueueName = channel.queueDeclare().getQueue();
             AMQP.BasicProperties props = new AMQP.BasicProperties
                     .Builder()
@@ -102,11 +112,19 @@ public class RMQClient {
             }
 
             if(r.error != null) {
+                Throwable error;
+
                 try {
                     Class<? extends Throwable> clazz = (Class<? extends Throwable>) Class.forName(r.error.clazz);
-                    throw gson.fromJson(r.error.reason, clazz);
+                    error = gson.fromJson(r.error.reason, clazz);
                 } catch (ClassNotFoundException e) {
                     throw new ClientException("Could not find exception class.", e);
+                } catch(Throwable t) {
+                    throw new ClientException("Failed to throw error.", t);
+                }
+
+                if(error != null) {
+                    throw error;
                 }
             }
 

@@ -38,7 +38,7 @@ public class RMQApplication<U> extends TimerTask {
 
     private RMQApplication(U app, String queue, String host, int poolSize) {
         this.queue = queue;
-        this.pool = ExecutorServiceFactory.create(queue + "-app", poolSize);
+        this.pool = ExecutorServiceFactory.createDefault(queue + "-app", poolSize);
         this.host = host;
         this.app = app;
     }
